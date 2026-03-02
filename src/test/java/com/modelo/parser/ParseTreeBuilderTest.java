@@ -149,4 +149,61 @@ class ParseTreeBuilderTest {
         assertTrue(rows.stream().anyMatch(r -> "T".equals(r.getToken())), "T nodes must exist");
         assertTrue(rows.stream().anyMatch(r -> "F".equals(r.getToken())), "F nodes must exist");
     }
+
+    // -------------------------------------------------------------------------
+    // Token display format tests (Format A vs Format B)
+    // -------------------------------------------------------------------------
+
+    @Test
+    void defaultFormatUsesRawLexemes() {
+        // Format B (default): identifiers and numbers appear as bare lexemes
+        List<SyntaxTreeNodeRow> rows = new ParseTreeBuilder().build(tokenize(SAMPLE));
+        assertTrue(rows.stream().anyMatch(r -> "a1".equals(r.getToken())),
+                "Format B: identifier 'a1' must appear as raw lexeme");
+        assertTrue(rows.stream().anyMatch(r -> "20".equals(r.getToken())),
+                "Format B: integer '20' must appear as raw lexeme");
+        assertFalse(rows.stream().anyMatch(r -> r.getToken().startsWith("id(")),
+                "Format B: no token must be wrapped in id(...)");
+        assertFalse(rows.stream().anyMatch(r -> r.getToken().startsWith("num(")),
+                "Format B: no token must be wrapped in num(...)");
+    }
+
+    @Test
+    void formatAWrapsIdentifiersAndNumbers() {
+        // Format A (wrapIdAndNum=true): TK_ID → id(...), TK_ENT/TK_DEC → num(...)
+        List<SyntaxTreeNodeRow> rows = new ParseTreeBuilder().build(tokenize(SAMPLE), true);
+        assertTrue(rows.stream().anyMatch(r -> "id(a1)".equals(r.getToken())),
+                "Format A: identifier 'a1' must be wrapped as 'id(a1)'");
+        assertTrue(rows.stream().anyMatch(r -> "num(20)".equals(r.getToken())),
+                "Format A: integer '20' must be wrapped as 'num(20)'");
+        assertTrue(rows.stream().anyMatch(r -> "num(2.5)".equals(r.getToken())),
+                "Format A: decimal '2.5' must be wrapped as 'num(2.5)'");
+        assertFalse(rows.stream().anyMatch(r -> "a1".equals(r.getToken())),
+                "Format A: bare identifier 'a1' must not appear unwrapped");
+    }
+
+    @Test
+    void formatAKeepsPunctuationAndKeywordsAsIs() {
+        // Punctuation and keywords must not be wrapped regardless of the flag
+        List<SyntaxTreeNodeRow> rows = new ParseTreeBuilder().build(tokenize(SAMPLE), true);
+        assertTrue(rows.stream().anyMatch(r -> "START".equals(r.getToken())),
+                "Format A: START keyword must remain as-is");
+        assertTrue(rows.stream().anyMatch(r -> "{".equals(r.getToken())),
+                "Format A: '{' must remain as-is");
+        assertTrue(rows.stream().anyMatch(r -> ";".equals(r.getToken())),
+                "Format A: ';' must remain as-is");
+    }
+
+    @Test
+    void formatBExplicitFlagMatchesDefault() {
+        List<TokenManager.TokenEntry> tokens = tokenize(SAMPLE);
+        List<SyntaxTreeNodeRow> defaultRows = new ParseTreeBuilder().build(tokens);
+        List<SyntaxTreeNodeRow> explicitRows = new ParseTreeBuilder().build(tokens, false);
+        assertEquals(defaultRows.size(), explicitRows.size(),
+                "Explicit Format B must produce same number of rows as default");
+        for (int i = 0; i < defaultRows.size(); i++) {
+            assertEquals(defaultRows.get(i).getToken(), explicitRows.get(i).getToken(),
+                    "Row " + i + " token must match between default and explicit Format B");
+        }
+    }
 }

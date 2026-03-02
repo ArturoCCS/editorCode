@@ -45,20 +45,41 @@ public class ParseTreeBuilder {
         }
     }
 
+    /**
+     * When {@code true} (Format A), leaf nodes for identifiers are labelled
+     * {@code id(<lexema>)} and for integer/decimal literals {@code num(<lexema>)}.
+     * When {@code false} (Format B, default), the raw lexeme is used as-is.
+     */
+    public static final boolean DEFAULT_WRAP_ID_AND_NUM = false;
+
     private List<TokenManager.TokenEntry> tokens;
     private int pos;
     private int nextId;
+    private boolean wrapIdAndNumInSyntaxTree;
 
     /**
-     * Builds the parse tree from the given token list.
+     * Builds the parse tree using the default token display format (Format B: raw lexemes).
      *
      * @param tokens tokenised input (as produced by {@link com.modelo.Tokenizer})
      * @return ordered list of tree rows suitable for the syntax-tree table; empty on failure
      */
     public List<SyntaxTreeNodeRow> build(List<TokenManager.TokenEntry> tokens) {
+        return build(tokens, DEFAULT_WRAP_ID_AND_NUM);
+    }
+
+    /**
+     * Builds the parse tree with an explicit token display format.
+     *
+     * @param tokens         tokenised input (as produced by {@link com.modelo.Tokenizer})
+     * @param wrapIdAndNum   {@code true} for Format A ({@code id(…)}/{@code num(…)}),
+     *                       {@code false} for Format B (raw lexeme)
+     * @return ordered list of tree rows suitable for the syntax-tree table; empty on failure
+     */
+    public List<SyntaxTreeNodeRow> build(List<TokenManager.TokenEntry> tokens, boolean wrapIdAndNum) {
         this.tokens = tokens;
         this.pos = 0;
         this.nextId = 1;
+        this.wrapIdAndNumInSyntaxTree = wrapIdAndNum;
         try {
             PNode root = parsePROGRAMA();
             List<SyntaxTreeNodeRow> rows = new ArrayList<>();
@@ -93,7 +114,24 @@ public class ParseTreeBuilder {
     private PNode consume(int parentId) {
         if (pos >= tokens.size()) return null;
         TokenManager.TokenEntry t = tokens.get(pos++);
-        return new PNode(nextId++, t.lexema(), parentId);
+        return new PNode(nextId++, leafLabel(t), parentId);
+    }
+
+    /**
+     * Returns the display label for a leaf token node.
+     * In Format A ({@code wrapIdAndNumInSyntaxTree=true}): identifiers become
+     * {@code id(<lexema>)}, integer/decimal literals become {@code num(<lexema>)}.
+     * In Format B (default): the raw lexeme is returned unchanged.
+     */
+    private String leafLabel(TokenManager.TokenEntry t) {
+        if (wrapIdAndNumInSyntaxTree) {
+            return switch (t.token()) {
+                case "TK_ID"            -> "id("  + t.lexema() + ")";
+                case "TK_ENT", "TK_DEC" -> "num(" + t.lexema() + ")";
+                default                 -> t.lexema();
+            };
+        }
+        return t.lexema();
     }
 
     /** Consume current token only if its type matches; return leaf or {@code null}. */
