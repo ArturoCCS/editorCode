@@ -229,10 +229,9 @@ public class CodeEditorTab {
                 ast = recursiveParser.parse(tokenManager.getTokenEntries());
                 syntErrors.addAll(recursiveParser.getErrores());
             }
-            // Build the parse tree from the token stream unconditionally so that a
-            // partial (or empty) tree is always available in the syntax-tree view,
-            // even when there are lexical or syntactic errors (as required).
-            syntaxRows = new ShiftReduceParseTreeBuilder().build(tokenManager.getTokenEntries());
+            if (!text.trim().isEmpty() && lexErrors.isEmpty() && syntErrors.isEmpty()) {
+                syntaxRows = new ShiftReduceParseTreeBuilder().build(tokenManager.getTokenEntries());
+            }
 
             if (isCancelled()) return null;
 
