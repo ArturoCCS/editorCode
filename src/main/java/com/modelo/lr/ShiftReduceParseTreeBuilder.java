@@ -338,7 +338,7 @@ public class ShiftReduceParseTreeBuilder {
      * the innermost T is reduced first, then each E wraps the previous result.
      */
     private PNode buildE() {
-        // Reduce: T → E (base case)
+        // Base case: E → T
         PNode t = buildT();
         PNode current = new PNode("E");
         if (t != null) current.children.add(t);
