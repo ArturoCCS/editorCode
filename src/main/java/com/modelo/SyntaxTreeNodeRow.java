@@ -1,17 +1,20 @@
 package com.modelo;
 
+import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 
 public class SyntaxTreeNodeRow {
     private final SimpleIntegerProperty nodeId;
     private final SimpleStringProperty token;
-    private final SimpleIntegerProperty parentId;
+    private final ObjectProperty<Integer> parentId;
 
-    public SyntaxTreeNodeRow(int nodeId, String token, int parentId) {
+    /** Creates a row where {@code parentId} may be {@code null} (used to denote the root, PROGRAMA). */
+    public SyntaxTreeNodeRow(int nodeId, String token, Integer parentId) {
         this.nodeId = new SimpleIntegerProperty(nodeId);
         this.token = new SimpleStringProperty(token);
-        this.parentId = new SimpleIntegerProperty(parentId);
+        this.parentId = new SimpleObjectProperty<>(parentId);
     }
 
     public int getNodeId() {
@@ -30,11 +33,12 @@ public class SyntaxTreeNodeRow {
         return token;
     }
 
-    public int getParentId() {
+    /** Returns the parent node ID, or {@code null} if this is the root node (PROGRAMA). */
+    public Integer getParentId() {
         return parentId.get();
     }
 
-    public SimpleIntegerProperty parentIdProperty() {
+    public ObjectProperty<Integer> parentIdProperty() {
         return parentId;
     }
 }

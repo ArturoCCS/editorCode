@@ -3,7 +3,7 @@ package com.vista;
 import com.controlador.TokenManager;
 import com.modelo.RecursiveDescentParser;
 import com.modelo.SyntaxTreeNodeRow;
-import com.modelo.parser.ParseTreeBuilder;
+import com.modelo.lr.ShiftReduceParseTreeBuilder;
 import com.modelo.Tokenizer;
 import com.modelo.ast.ASTNode;
 import javafx.animation.PauseTransition;
@@ -232,7 +232,7 @@ public class CodeEditorTab {
             // Build the parse tree from the token stream unconditionally so that a
             // partial (or empty) tree is always available in the syntax-tree view,
             // even when there are lexical or syntactic errors (as required).
-            syntaxRows = new ParseTreeBuilder().build(tokenManager.getTokenEntries());
+            syntaxRows = new ShiftReduceParseTreeBuilder().build(tokenManager.getTokenEntries());
 
             if (isCancelled()) return null;
 
