@@ -14,12 +14,10 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.input.KeyEvent;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
+import javafx.scene.layout.*;
 import javafx.scene.media.AudioClip;
 import javafx.util.Duration;
+import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.TwoDimensional;
 
@@ -36,7 +34,6 @@ public class CodeEditorTab {
     private final TokenManager tokenManager;
 
     private final PauseTransition parseDebounce = new PauseTransition(Duration.millis(150));
-
     private final AtomicLong parseVersion = new AtomicLong(0);
 
     private Thread parseThread;
@@ -91,18 +88,19 @@ public class CodeEditorTab {
             this.version = version;
         }
     }
+
     public CodeEditorTab(String title, AudioClip baseKeySound, TokenManager tokenManager) {
         this.title = title;
         this.root = new BorderPane();
         this.tokenManager = tokenManager;
 
         codeArea = new CodeArea();
-        codeArea.setWrapText(true);
+        codeArea.setWrapText(false);
 
         setupGutter();
         setupCodeArea();
         setupErrorTooltip();
-        setupMascot();
+        setupMascotOverlayViewportBound();
 
         codeArea.textProperty().addListener((obs, oldText, newText) -> {
             keyFxMap.values().forEach(PauseTransition::stop);
@@ -131,7 +129,9 @@ public class CodeEditorTab {
 
             Region errorMarker = new Region();
             errorMarker.getStyleClass().add("line-error-marker");
-            errorMarker.setVisible(errorLines.contains(idx));
+            boolean hasError = errorLines.contains(idx);
+            errorMarker.setVisible(hasError);
+            errorMarker.setManaged(hasError);
 
             gutter.getChildren().addAll(lineNo, errorMarker);
             HBox.setMargin(lineNo, new Insets(0, 0, 0, 8));
@@ -146,18 +146,40 @@ public class CodeEditorTab {
         codeArea.addEventHandler(KeyEvent.KEY_TYPED, this::handleKeyTypedDisabledCombo);
 
         try {
-            codeArea.getStylesheets().add(getClass().getResource("/com/editorcode/style.css").toExternalForm());
+            codeArea.getStylesheets().add(getClass().getResource("/com/editorcode/styles.css").toExternalForm());
         } catch (Exception ignore) {}
     }
 
-    private void setupMascot() {
+    private void setupMascotOverlayViewportBound() {
         mascot = new MascotCrocSprite();
         mascot.setMouseTransparent(true);
+        mascot.setPickOnBounds(false);
 
-        StackPane stack = new StackPane(codeArea, mascot);
-        StackPane.setAlignment(mascot, Pos.BOTTOM_RIGHT);
-        StackPane.setMargin(mascot, new Insets(0, 18, 10, 0));
-        root.setCenter(stack);
+        VirtualizedScrollPane<CodeArea> scroller = new VirtualizedScrollPane<>(codeArea);
+
+        StackPane viewport = new StackPane();
+        viewport.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        StackPane.setAlignment(scroller, Pos.TOP_LEFT);
+        viewport.getChildren().add(scroller);
+
+        Pane overlay = new Pane();
+        overlay.setPickOnBounds(false);
+        overlay.setMouseTransparent(true);
+        overlay.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        overlay.prefWidthProperty().bind(viewport.widthProperty());
+        overlay.prefHeightProperty().bind(viewport.heightProperty());
+
+        mascot.layoutXProperty().bind(overlay.widthProperty().subtract(mascot.widthProperty()).subtract(18));
+        mascot.layoutYProperty().bind(overlay.heightProperty().subtract(mascot.heightProperty()).subtract(10));
+
+        overlay.getChildren().add(mascot);
+
+        StackPane container = new StackPane(viewport, overlay);
+        container.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        root.setCenter(container);
     }
 
     private void initializeContent() {
@@ -218,8 +240,7 @@ public class CodeEditorTab {
 
             if (isCancelled()) return null;
 
-            List<Tokenizer.TokenError> lexErrors =
-                    new ArrayList<>(tokenManager.getLastErrors());
+            List<Tokenizer.TokenError> lexErrors = new ArrayList<>(tokenManager.getLastErrors());
 
             List<RecursiveDescentParser.ParseError> syntErrors = new ArrayList<>();
             ASTNode ast = null;
@@ -229,6 +250,7 @@ public class CodeEditorTab {
                 ast = recursiveParser.parse(tokenManager.getTokenEntries());
                 syntErrors.addAll(recursiveParser.getErrores());
             }
+
             if (!text.trim().isEmpty() && lexErrors.isEmpty() && syntErrors.isEmpty()) {
                 syntaxRows = new ShiftReduceParseTreeBuilder().build(tokenManager.getTokenEntries());
             }
@@ -266,25 +288,27 @@ public class CodeEditorTab {
 
     private void updateSyntaxStylesFromModel() {
         List<TokenManager.TokenEntry> currentTokens = tokenManager.getTokenEntries();
-        if (currentTokens.equals(lastProcessedTokens)) {
-            return;
-        }
+        if (currentTokens.equals(lastProcessedTokens)) return;
 
         codeArea.clearStyle(0, codeArea.getLength());
 
         for (TokenManager.TokenEntry e : currentTokens) {
             String tk = e.token();
+            String lx = e.lexema();
+
             String styleClass = switch (tk) {
                 case "TK_ID" -> "tok-id";
                 case "TK_ENT" -> "tok-num";
                 case "TK_DEC" -> "tok-dec";
                 default -> {
-                    if (tk.startsWith("TK_tipo")) yield "tok-pr";
-                    else if (tk.startsWith("TK_") && e.lexema().length() == 1 &&
-                            isSymbolChar(e.lexema().charAt(0))) yield "tok-sym";
+                    if (tk.startsWith("TK_tipo")) yield "tok-type";
+                    else if ("TK_START".equals(tk) || "TK_END".equals(tk)) yield "tok-kw";
+                    else if ("TK_READ".equals(tk) || "TK_PRINT".equals(tk)) yield "tok-io";
+                    else if (tk.startsWith("TK_") && lx != null && lx.length() == 1 && isSymbolChar(lx.charAt(0))) yield "tok-sym";
                     else yield "tok-pr";
                 }
             };
+
             codeArea.setStyleClass(e.start(), e.end(), styleClass);
         }
 
@@ -303,9 +327,13 @@ public class CodeEditorTab {
         Set<Integer> newErrorLines = new HashSet<>();
 
         for (Tokenizer.TokenError err : lastErrorsLexi) {
-            TwoDimensional.Position posStart = codeArea.offsetToPosition(err.start, TwoDimensional.Bias.Forward);
+            int start = Math.max(0, Math.min(err.start, codeArea.getLength()));
+            int end = Math.max(0, Math.min(err.end, codeArea.getLength()));
+            if (end <= start) end = Math.min(codeArea.getLength(), start + 1);
+
+            TwoDimensional.Position posStart = codeArea.offsetToPosition(start, TwoDimensional.Bias.Forward);
             newErrorLines.add(posStart.getMajor());
-            codeArea.setStyleClass(err.start, err.end, "error-highlight");
+            codeArea.setStyleClass(start, end, "error-lex");
         }
 
         for (RecursiveDescentParser.ParseError err : lastErrorsSynt) {
@@ -316,12 +344,12 @@ public class CodeEditorTab {
                 start = end;
                 end = tmp;
             }
-            if (end == start) end = Math.min(codeArea.getLength(), start + 1);
+            if (end <= start) end = Math.min(codeArea.getLength(), start + 1);
 
             if (start < end) {
                 TwoDimensional.Position posStart = codeArea.offsetToPosition(start, TwoDimensional.Bias.Forward);
                 newErrorLines.add(posStart.getMajor());
-                codeArea.setStyleClass(start, end, "error-highlight");
+                codeArea.setStyleClass(start, end, "error-syn");
             }
         }
 
@@ -329,6 +357,8 @@ public class CodeEditorTab {
         errorLines.addAll(newErrorLines);
 
         codeArea.setParagraphGraphicFactory(codeArea.getParagraphGraphicFactory());
+
+        updateSyntaxStylesFromModel();
     }
 
     private void handleKeyTypedDisabledCombo(KeyEvent ev) {

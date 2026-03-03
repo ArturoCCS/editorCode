@@ -10,7 +10,6 @@ public class SyntaxTreeNodeRow {
     private final SimpleStringProperty token;
     private final ObjectProperty<Integer> parentId;
 
-    /** Creates a row where {@code parentId} may be {@code null} (used to denote the root, PROGRAMA). */
     public SyntaxTreeNodeRow(int nodeId, String token, Integer parentId) {
         this.nodeId = new SimpleIntegerProperty(nodeId);
         this.token = new SimpleStringProperty(token);
@@ -33,7 +32,6 @@ public class SyntaxTreeNodeRow {
         return token;
     }
 
-    /** Returns the parent node ID, or {@code null} if this is the root node (PROGRAMA). */
     public Integer getParentId() {
         return parentId.get();
     }

@@ -6,6 +6,7 @@ import com.vista.CodeEditorTab;
 import com.modelo.SymbolRow;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -16,6 +17,8 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class MainController {
 
@@ -33,6 +36,9 @@ public class MainController {
     private TableView<SymbolRow> symbolTable;
     private TableView<SyntaxTreeNodeRow> syntaxTreeTable;
 
+    private final Map<String, TitledPane> panels = new LinkedHashMap<>();
+    private final Accordion accordion = new Accordion();
+
     @FXML
     public void initialize() {
         try {
@@ -48,11 +54,66 @@ public class MainController {
         btnNew.setOnAction(e -> createNewTab(null, "txt"));
         btnOpen.setOnAction(e -> openFileAction());
 
-        setupTokenTable();
         setupSymbolTable();
+        setupTokenTable();
         setupSyntaxTreeTable();
 
+        setupPanelsToggleUI();
+        mountPanelsArea();
+
         Platform.runLater(() -> createNewTab("Main.js", "js"));
+    }
+
+    private void mountPanelsArea() {
+        if (tokenBox == null) return;
+        tokenBox.getChildren().clear();
+
+        TitledPane toggles = buildPanelsTogglePane();
+        toggles.getStyleClass().add("token-panel");
+
+        accordion.getPanes().setAll(panels.values());
+        accordion.setExpandedPane(panels.get("symbols"));
+
+        tokenBox.getChildren().addAll(toggles, accordion);
+    }
+
+    private TitledPane buildPanelsTogglePane() {
+        VBox checks = new VBox(6);
+        checks.getStyleClass().add("panel-toggle-box");
+
+        for (Map.Entry<String, TitledPane> e : panels.entrySet()) {
+            String id = e.getKey();
+            TitledPane pane = e.getValue();
+
+            CheckBox cb = new CheckBox(pane.getText());
+            cb.setSelected(true);
+            cb.selectedProperty().addListener((obs, oldV, newV) -> {
+                if (newV) {
+                    if (!accordion.getPanes().contains(pane)) accordion.getPanes().add(pane);
+                } else {
+                    accordion.getPanes().remove(pane);
+                }
+            });
+
+            cb.setUserData(id);
+            checks.getChildren().add(cb);
+        }
+
+        TitledPane toggles = new TitledPane("Paneles", checks);
+        toggles.setExpanded(true);
+        return toggles;
+    }
+
+    private void setupPanelsToggleUI() {
+        if (tokenBox == null) return;
+    }
+
+    private void registerPanel(String id, String title, Node content) {
+        TitledPane pane = new TitledPane(title, content);
+        pane.setCollapsible(true);
+        pane.setExpanded(false);
+        pane.getStyleClass().add("token-panel");
+        panels.put(id, pane);
     }
 
     private void setupSyntaxTreeTable() {
@@ -68,7 +129,7 @@ public class MainController {
 
         TableColumn<SyntaxTreeNodeRow, Integer> colParent = new TableColumn<>("Padre");
         colParent.setCellValueFactory(data -> data.getValue().parentIdProperty());
-        colParent.setCellFactory(col -> new javafx.scene.control.TableCell<SyntaxTreeNodeRow, Integer>() {
+        colParent.setCellFactory(col -> new TableCell<SyntaxTreeNodeRow, Integer>() {
             @Override
             protected void updateItem(Integer item, boolean empty) {
                 super.updateItem(item, empty);
@@ -77,17 +138,9 @@ public class MainController {
         });
 
         syntaxTreeTable.getColumns().addAll(colNodeId, colToken, colParent);
-
-        Label title = new Label("Árbol Sintáctico");
-        title.getStyleClass().add("token-title");
-
-        if (tokenBox != null) {
-            tokenBox.getChildren().add(new Separator());
-            tokenBox.getChildren().add(title);
-            tokenBox.getChildren().add(syntaxTreeTable);
-        }
-
         syntaxTreeTable.setItems(tokenManager.getSyntaxTreeRows());
+
+        registerPanel("syntaxTree", "Árbol Sintáctico", syntaxTreeTable);
     }
 
     private void setupTokenTable() {
@@ -102,16 +155,9 @@ public class MainController {
         colToken.setCellValueFactory(data -> data.getValue().tokenProperty());
 
         tokenTable.getColumns().addAll(colLexema, colToken);
-
-        Label title = new Label("Tabla de Tokens");
-        title.getStyleClass().add("token-title");
-
-        if (tokenBox != null) {
-            tokenBox.getChildren().add(title);
-            tokenBox.getChildren().add(tokenTable);
-        }
-
         tokenTable.setItems(tokenManager.getTokensObservable());
+
+        registerPanel("tokens", "Tabla de Tokens", tokenTable);
     }
 
     private void setupSymbolTable() {
@@ -129,17 +175,9 @@ public class MainController {
         colValor.setCellValueFactory(data -> data.getValue().valorProperty());
 
         symbolTable.getColumns().addAll(colId, colTipo, colValor);
-
-        Label title = new Label("Tabla de Símbolos");
-        title.getStyleClass().add("token-title");
-
-        if (tokenBox != null) {
-            tokenBox.getChildren().add(new Separator());
-            tokenBox.getChildren().add(title);
-            tokenBox.getChildren().add(symbolTable);
-        }
-
         symbolTable.setItems(tokenManager.getSymbolsObservable());
+
+        registerPanel("symbols", "Tabla de Símbolos", symbolTable);
     }
 
     private void createNewTab(String initialPath, String ext) {

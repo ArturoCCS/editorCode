@@ -7,77 +7,27 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * Builds a parse-tree by simulating shift/reduce (bottom-up LR-style) processing.
- *
- * <p>The grammar used:
- * <pre>
- * PROGRAMA           → INICIO CUERPO FINAL
- * INICIO             → START {
- * FINAL              → } END
- * CUERPO             → LISTA_INSTRUCCIONES
- * LISTA_INSTRUCCIONES → LISTA_INSTRUCCIONES INSTRUCCION | INSTRUCCION | ε
- * INSTRUCCION → DECLARACION ; | ASIGNACION ; | LECTURA ; | ESCRITURA ;
- * DECLARACION → INTEGER LISTAIDS | DECIMAL LISTAIDS
- * LISTAIDS    → ELEMENTOID | LISTAIDS , ELEMENTOID
- * ELEMENTOID  → id | ASIGNACION
- * ASIGNACION  → id = E
- * LECTURA     → READ ( id )
- * ESCRITURA   → PRINT ( E )
- * E           → E + T | E - T | T
- * T           → T * F | T / F | F
- * F           → id | num | ( E )
- * </pre>
- *
- * <p>Node IDs are assigned in <em>post-order</em>, which reproduces the creation order
- * of a true shift/reduce parser:
- * <ul>
- *   <li>Terminal (token) nodes receive lower IDs because they are created first (SHIFT).</li>
- *   <li>Non-terminal nodes receive higher IDs because they are created after their
- *       RHS symbols have been placed on the stack (REDUCE).</li>
- * </ul>
- *
- * <p>Leaf node labels use the {@code TK_*} token-type names (e.g. {@code TK_START},
- * {@code TK_ID}) rather than the raw lexeme.
- *
- * <p>The root {@code PROGRAMA} node always has {@code parentId = null}, displayed
- * as {@code NULL} in the UI.
- */
 public class ShiftReduceParseTreeBuilder {
 
-    // -------------------------------------------------------------------------
-    // Internal parse-tree node (IDs assigned later, in post-order)
-    // -------------------------------------------------------------------------
+
 
     private static final class PNode {
         final String label;
         final List<PNode> children = new ArrayList<>();
-        int id = -1;            // assigned in post-order traversal
+        int id = -1;
 
         PNode(String label) {
             this.label = label;
         }
     }
 
-    // -------------------------------------------------------------------------
-    // State
-    // -------------------------------------------------------------------------
 
     private List<TokenManager.TokenEntry> tokens;
     private int pos;
     private int nextId;
 
-    // -------------------------------------------------------------------------
-    // Public API
-    // -------------------------------------------------------------------------
 
-    /**
-     * Builds the shift/reduce parse tree for the given token list.
-     *
-     * @param tokens tokenised input produced by the Tokenizer
-     * @return ordered list of {@link SyntaxTreeNodeRow}s; the root is always first;
-     *         empty list on unrecoverable failure
-     */
+
     public List<SyntaxTreeNodeRow> build(List<TokenManager.TokenEntry> tokens) {
         this.tokens = tokens;
         this.pos = 0;
@@ -89,7 +39,6 @@ public class ShiftReduceParseTreeBuilder {
             flatten(root, null, rows);
             return rows;
         } catch (Exception e) {
-            // Return a minimal tree so the table is never completely empty
             PNode fallback = new PNode("PROGRAMA");
             fallback.id = 1;
             List<SyntaxTreeNodeRow> rows = new ArrayList<>();
@@ -98,20 +47,12 @@ public class ShiftReduceParseTreeBuilder {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // ID assignment: post-order → tokens (leaves) get lower IDs than their parents
-    // -------------------------------------------------------------------------
-
     private void assignIds(PNode node) {
         for (PNode child : node.children) {
             assignIds(child);
         }
         node.id = nextId++;
     }
-
-    // -------------------------------------------------------------------------
-    // Flatten: pre-order display with post-order IDs
-    // -------------------------------------------------------------------------
 
     private void flatten(PNode node, Integer parentId, List<SyntaxTreeNodeRow> rows) {
         rows.add(new SyntaxTreeNodeRow(node.id, node.label, parentId));
@@ -120,9 +61,6 @@ public class ShiftReduceParseTreeBuilder {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Token helpers
-    // -------------------------------------------------------------------------
 
     private boolean peek(String tokenType) {
         return pos < tokens.size() && tokens.get(pos).token().equals(tokenType);
@@ -133,21 +71,19 @@ public class ShiftReduceParseTreeBuilder {
         return idx < tokens.size() && tokens.get(idx).token().equals(tokenType);
     }
 
-    /** Shift the current token (if it matches {@code tokenType}) and return a leaf node. */
+
     private PNode shift(String tokenType) {
         if (!peek(tokenType)) return null;
         TokenManager.TokenEntry t = tokens.get(pos++);
-        return new PNode(t.token());   // use TK_* name as label
+        return new PNode(t.token());
     }
 
-    /** Shift the current token unconditionally and return a leaf node. */
     private PNode shiftAny() {
         if (pos >= tokens.size()) return null;
         TokenManager.TokenEntry t = tokens.get(pos++);
         return new PNode(t.token());
     }
 
-    /** Create a non-terminal node and adopt the given children. */
     private PNode reduce(String symbol, PNode... children) {
         PNode node = new PNode(symbol);
         for (PNode child : children) {
@@ -156,11 +92,6 @@ public class ShiftReduceParseTreeBuilder {
         return node;
     }
 
-    // -------------------------------------------------------------------------
-    // Grammar productions
-    // -------------------------------------------------------------------------
-
-    /** PROGRAMA → INICIO CUERPO FINAL */
     private PNode buildPROGRAMA() {
         PNode inicio  = buildINICIO();
         PNode cuerpo  = buildCUERPO();
@@ -172,7 +103,6 @@ public class ShiftReduceParseTreeBuilder {
         return prog;
     }
 
-    /** INICIO → START { */
     private PNode buildINICIO() {
         PNode start  = shift("TK_START");
         PNode lbrace = shift("TK_{");
@@ -182,7 +112,6 @@ public class ShiftReduceParseTreeBuilder {
         return node;
     }
 
-    /** FINAL → } END */
     private PNode buildFINAL() {
         PNode rbrace = shift("TK_}");
         PNode end    = shift("TK_END");
@@ -192,9 +121,7 @@ public class ShiftReduceParseTreeBuilder {
         return node;
     }
 
-    /**
-     * CUERPO → LISTA_INSTRUCCIONES
-     */
+
     private PNode buildCUERPO() {
         PNode node = new PNode("CUERPO");
         PNode lista = buildLISTA_INSTRUCCIONES();
@@ -202,13 +129,6 @@ public class ShiftReduceParseTreeBuilder {
         return node;
     }
 
-    /**
-     * LISTA_INSTRUCCIONES → LISTA_INSTRUCCIONES INSTRUCCION | INSTRUCCION | ε
-     * FIRST(INSTRUCCION) = { TK_tipoEntero, TK_tipoDecimal, TK_ID, TK_READ, TK_PRINT }
-     *
-     * Parsed iteratively; the resulting tree encodes the left-recursive structure
-     * by nesting LISTA_INSTRUCCIONES nodes to the left, as a true LR parser would produce.
-     */
     private PNode buildLISTA_INSTRUCCIONES() {
         PNode current = new PNode("LISTA_INSTRUCCIONES");
         if (peek("TK_tipoEntero") || peek("TK_tipoDecimal")
@@ -225,11 +145,10 @@ public class ShiftReduceParseTreeBuilder {
                 current = newList;
             }
         }
-        // ε production – LISTA_INSTRUCCIONES node with no children represents empty body
+
         return current;
     }
 
-    /** INSTRUCCION → DECLARACION ; | ASIGNACION ; | LECTURA ; | ESCRITURA ; */
     private PNode buildINSTRUCCION() {
         PNode node = new PNode("INSTRUCCION");
         if (peek("TK_tipoEntero") || peek("TK_tipoDecimal")) {
@@ -256,7 +175,6 @@ public class ShiftReduceParseTreeBuilder {
         return node;
     }
 
-    /** DECLARACION → INTEGER LISTAIDS | DECIMAL LISTAIDS */
     private PNode buildDECLARACION() {
         PNode node = new PNode("DECLARACION");
         PNode tipo = null;
@@ -268,24 +186,18 @@ public class ShiftReduceParseTreeBuilder {
         return node;
     }
 
-    /**
-     * LISTAIDS → ELEMENTOID | LISTAIDS , ELEMENTOID   (left-recursive)
-     *
-     * Parsed iteratively; the resulting tree encodes the left-recursive structure
-     * by nesting LISTAIDS nodes to the left, as a true LR parser would produce.
-     */
+
     private PNode buildLISTAIDS() {
-        // First element
+
         PNode elem = buildELEMENTOID();
         PNode current = new PNode("LISTAIDS");
         if (elem != null) current.children.add(elem);
 
-        // Each , ELEMENTOID extends the list left-recursively
         while (peek("TK_,")) {
             PNode comma   = shift("TK_,");
             PNode nextElem = buildELEMENTOID();
             PNode newList = new PNode("LISTAIDS");
-            newList.children.add(current);          // left child: previous LISTAIDS
+            newList.children.add(current);
             if (comma    != null) newList.children.add(comma);
             if (nextElem != null) newList.children.add(nextElem);
             current = newList;
@@ -293,10 +205,6 @@ public class ShiftReduceParseTreeBuilder {
         return current;
     }
 
-    /**
-     * ELEMENTOID → id | ASIGNACION
-     * One token of lookahead: "id =" → ASIGNACION; bare "id" → id leaf.
-     */
     private PNode buildELEMENTOID() {
         PNode node = new PNode("ELEMENTOID");
         if (peek("TK_ID")) {
@@ -312,7 +220,6 @@ public class ShiftReduceParseTreeBuilder {
         return node;
     }
 
-    /** ASIGNACION → id = E */
     private PNode buildASIGNACION() {
         PNode id   = shift("TK_ID");
         PNode eq   = shift("TK_=");
@@ -324,7 +231,6 @@ public class ShiftReduceParseTreeBuilder {
         return node;
     }
 
-    /** LECTURA → READ ( id ) */
     private PNode buildLECTURA() {
         PNode read = shift("TK_READ");
         PNode lp   = shift("TK_(");
@@ -338,7 +244,6 @@ public class ShiftReduceParseTreeBuilder {
         return node;
     }
 
-    /** ESCRITURA → PRINT ( E ) */
     private PNode buildESCRITURA() {
         PNode print = shift("TK_PRINT");
         PNode lp    = shift("TK_(");
@@ -352,14 +257,9 @@ public class ShiftReduceParseTreeBuilder {
         return node;
     }
 
-    /**
-     * E → E + T | E - T | T   (left-recursive, parsed iteratively)
-     *
-     * In post-order ID assignment this mirrors the shift/reduce sequence:
-     * the innermost T is reduced first, then each E wraps the previous result.
-     */
+
     private PNode buildE() {
-        // Base case: E → T
+
         PNode t = buildT();
         PNode current = new PNode("E");
         if (t != null) current.children.add(t);
@@ -368,7 +268,7 @@ public class ShiftReduceParseTreeBuilder {
             PNode op    = shiftAny();
             PNode nextT = buildT();
             PNode newE  = new PNode("E");
-            newE.children.add(current);             // E (previously reduced)
+            newE.children.add(current);
             if (op    != null) newE.children.add(op);
             if (nextT != null) newE.children.add(nextT);
             current = newE;
@@ -376,9 +276,6 @@ public class ShiftReduceParseTreeBuilder {
         return current;
     }
 
-    /**
-     * T → T * F | T / F | F   (left-recursive, parsed iteratively)
-     */
     private PNode buildT() {
         PNode f = buildF();
         PNode current = new PNode("T");
@@ -388,7 +285,7 @@ public class ShiftReduceParseTreeBuilder {
             PNode op   = shiftAny();
             PNode nextF = buildF();
             PNode newT  = new PNode("T");
-            newT.children.add(current);             // T (previously reduced)
+            newT.children.add(current);
             if (op    != null) newT.children.add(op);
             if (nextF != null) newT.children.add(nextF);
             current = newT;
@@ -396,7 +293,6 @@ public class ShiftReduceParseTreeBuilder {
         return current;
     }
 
-    /** F → id | num | ( E ) */
     private PNode buildF() {
         PNode node = new PNode("F");
         if (peek("TK_ID")) {
