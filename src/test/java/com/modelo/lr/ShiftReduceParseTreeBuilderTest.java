@@ -153,7 +153,7 @@ class ShiftReduceParseTreeBuilderTest {
         List<SyntaxTreeNodeRow> rows = new ShiftReduceParseTreeBuilder().build(tokenize(SAMPLE));
         // All terminal (leaf) nodes must use TK_* labels
         Set<String> nonTerminals = Set.of(
-                "PROGRAMA", "INICIO", "FINAL", "CUERPO", "INSTRUCCION",
+                "PROGRAMA", "INICIO", "FINAL", "CUERPO", "LISTA_INSTRUCCIONES", "INSTRUCCION",
                 "DECLARACION", "LISTAIDS", "ELEMENTOID", "ASIGNACION",
                 "LECTURA", "ESCRITURA", "E", "T", "F");
         for (SyntaxTreeNodeRow r : rows) {

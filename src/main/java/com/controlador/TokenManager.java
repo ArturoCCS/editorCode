@@ -37,9 +37,11 @@ public class TokenManager {
     }
 
     public void updateSyntaxTree(List<SyntaxTreeNodeRow> newRows) {
+        List<SyntaxTreeNodeRow> sorted = new ArrayList<>(newRows);
+        sorted.sort(Comparator.comparingInt(SyntaxTreeNodeRow::getNodeId));
         Platform.runLater(() -> {
             syntaxTreeRows.clear();
-            syntaxTreeRows.addAll(newRows);
+            syntaxTreeRows.addAll(sorted);
         });
     }
 

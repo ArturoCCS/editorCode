@@ -12,10 +12,11 @@ import java.util.List;
  *
  * <p>The grammar used:
  * <pre>
- * PROGRAMA    → INICIO CUERPO FINAL
- * INICIO      → START {
- * FINAL       → } END
- * CUERPO      → INSTRUCCION CUERPO | ε
+ * PROGRAMA           → INICIO CUERPO FINAL
+ * INICIO             → START {
+ * FINAL              → } END
+ * CUERPO             → LISTA_INSTRUCCIONES
+ * LISTA_INSTRUCCIONES → LISTA_INSTRUCCIONES INSTRUCCION | INSTRUCCION | ε
  * INSTRUCCION → DECLARACION ; | ASIGNACION ; | LECTURA ; | ESCRITURA ;
  * DECLARACION → INTEGER LISTAIDS | DECIMAL LISTAIDS
  * LISTAIDS    → ELEMENTOID | LISTAIDS , ELEMENTOID
@@ -192,20 +193,40 @@ public class ShiftReduceParseTreeBuilder {
     }
 
     /**
-     * CUERPO → INSTRUCCION CUERPO | ε
-     * FIRST(INSTRUCCION) = { TK_tipoEntero, TK_tipoDecimal, TK_ID, TK_READ, TK_PRINT }
+     * CUERPO → LISTA_INSTRUCCIONES
      */
     private PNode buildCUERPO() {
         PNode node = new PNode("CUERPO");
+        PNode lista = buildLISTA_INSTRUCCIONES();
+        if (lista != null) node.children.add(lista);
+        return node;
+    }
+
+    /**
+     * LISTA_INSTRUCCIONES → LISTA_INSTRUCCIONES INSTRUCCION | INSTRUCCION | ε
+     * FIRST(INSTRUCCION) = { TK_tipoEntero, TK_tipoDecimal, TK_ID, TK_READ, TK_PRINT }
+     *
+     * Parsed iteratively; the resulting tree encodes the left-recursive structure
+     * by nesting LISTA_INSTRUCCIONES nodes to the left, as a true LR parser would produce.
+     */
+    private PNode buildLISTA_INSTRUCCIONES() {
+        PNode current = new PNode("LISTA_INSTRUCCIONES");
         if (peek("TK_tipoEntero") || peek("TK_tipoDecimal")
                 || peek("TK_ID") || peek("TK_READ") || peek("TK_PRINT")) {
             PNode instr = buildINSTRUCCION();
-            if (instr != null) node.children.add(instr);
-            PNode rest  = buildCUERPO();
-            if (rest  != null) node.children.add(rest);
+            if (instr != null) current.children.add(instr);
+
+            while (peek("TK_tipoEntero") || peek("TK_tipoDecimal")
+                    || peek("TK_ID") || peek("TK_READ") || peek("TK_PRINT")) {
+                PNode nextInstr = buildINSTRUCCION();
+                PNode newList = new PNode("LISTA_INSTRUCCIONES");
+                newList.children.add(current);
+                if (nextInstr != null) newList.children.add(nextInstr);
+                current = newList;
+            }
         }
-        // ε production – CUERPO node with no children represents empty body
-        return node;
+        // ε production – LISTA_INSTRUCCIONES node with no children represents empty body
+        return current;
     }
 
     /** INSTRUCCION → DECLARACION ; | ASIGNACION ; | LECTURA ; | ESCRITURA ; */
