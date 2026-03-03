@@ -66,8 +66,15 @@ public class MainController {
         TableColumn<SyntaxTreeNodeRow, String> colToken = new TableColumn<>("Token");
         colToken.setCellValueFactory(data -> data.getValue().tokenProperty());
 
-        TableColumn<SyntaxTreeNodeRow, Number> colParent = new TableColumn<>("Padre");
+        TableColumn<SyntaxTreeNodeRow, Integer> colParent = new TableColumn<>("Padre");
         colParent.setCellValueFactory(data -> data.getValue().parentIdProperty());
+        colParent.setCellFactory(col -> new javafx.scene.control.TableCell<SyntaxTreeNodeRow, Integer>() {
+            @Override
+            protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : (item == null ? "NULL" : item.toString()));
+            }
+        });
 
         syntaxTreeTable.getColumns().addAll(colNodeId, colToken, colParent);
 
